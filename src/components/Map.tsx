@@ -4,12 +4,16 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useState } from "react";
 
 type Pin = {
-  id: string;
+  id: number;
   latitude: number;
   longitude: number;
   title: string | null;
   createdAt: string;
 };
+
+type CreatePinResponse = {
+  newPin?: Pin;
+} & Partial<Pin>;
 
 export default function TravelMap() {
   const [pins, setPins] = useState<Pin[]>([]);
@@ -83,15 +87,7 @@ export default function TravelMap() {
 
   async function createPin(latitude: number, longitude: number) {
     try {
-      const locationData = await fetch(`/api/reverse?lat=${latitude}&lon=${longitude}`);
-      
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Unknown error creating pin";
-      setError(message);
-    }
-
-    try {
+      // create a pin from the location data
       const response = await fetch("/api/pins", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,7 +99,17 @@ export default function TravelMap() {
         throw new Error(data.error || "Failed to create pin");
       }
 
-      const newPin = (await response.json()) as Pin;
+      const payload = (await response.json()) as CreatePinResponse;
+      const newPin = payload.newPin ?? (payload as Pin);
+
+      if (
+        typeof newPin?.id !== "number" ||
+        typeof newPin?.latitude !== "number" ||
+        typeof newPin?.longitude !== "number"
+      ) {
+        throw new Error("Unexpected response while creating pin");
+      }
+
       setPins((currentPins) => [newPin, ...currentPins]);
       setError(null);
     } catch (err) {

@@ -29,8 +29,8 @@ model Pin {
   emoji      String?   // new
   createdAt  DateTime @default(now())
 
-  author     User     @relation(fields: [authorId], references: [id])
-  authorId   Int
+  author     User?     @relation(fields: [authorId], references: [id])
+  authorId   Int?
 
   city       City?    @relation(fields: [cityId], references: [id])
   cityId     String?
@@ -64,6 +64,7 @@ model State {
 
   @@index([name])
   @@index([countryId])
+  @@unique([countryId, name])
 }
 
 model City {
@@ -86,4 +87,5 @@ model City {
   @@index([name])
   @@index([countryId])
   @@index([stateId])
+  @@unique([countryId, stateId, name])
 }

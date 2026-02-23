@@ -1,95 +1,119 @@
 // app/api/reverse/route.ts
 
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url)
+  const { searchParams } = new URL(req.url);
 
-  const lat = searchParams.get("lat")
-  const lon = searchParams.get("lon")
+  const lat = searchParams.get("lat");
+  const lon = searchParams.get("lon");
 
   if (!lat || !lon) {
-    return NextResponse.json(
-      { error: "Missing lat or lon" },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: "Missing lat or lon" }, { status: 400 });
   }
 
   const response = await fetch(
     `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&extratags=1`,
     {
       headers: {
-        "User-Agent": "flighty-app"
-      }
-    }
-  )
+        "User-Agent": "pin-traveler-app",
+      },
+    },
+  );
 
   if (!response.ok) {
     return NextResponse.json(
       { error: "Failed to fetch location data" },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 
-  const data = await response.json()
+  const data = await response.json();
 
-  const address = data.address || {}
-  const extra = data.extratags || {}
+  const address = data.address || {};
+  const extra = data.extratags || {};
 
-  // Normalize location hierarchy
+  const normalizeDisplay = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.trim().replace(/\s+/g, " ");
+    return cleaned.length ? cleaned : null;
+  };
+
+  const normalizeKey = (value: unknown): string | null => {
+    const display = normalizeDisplay(value);
+    return display ? display.toLocaleLowerCase("en-US") : null;
+  };
+
+  const normalizeCountryCode = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const cleaned = value.trim().toUpperCase();
+    return cleaned.length ? cleaned : null;
+  };
+
+  const toNumber = (value: unknown): number | null => {
+    const n =
+      typeof value === "string" || typeof value === "number"
+        ? Number(value)
+        : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // normalize source data
+  const cityRaw =
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    null;
+
   const location = {
-    // Core identity
-    osmId: data.osm_id?.toString() || null,
-    osmType: data.osm_type || null,
-    placeId: data.place_id?.toString() || null,
+    // identity
+    osmId: data.osm_id != null ? String(data.osm_id) : null,
+    osmType: normalizeDisplay(data.osm_type),
+    placeId: data.place_id != null ? String(data.place_id) : null,
 
-    // Coordinates
-    latitude: parseFloat(data.lat),
-    longitude: parseFloat(data.lon),
+    // coordinates
+    latitude: toNumber(data.lat),
+    longitude: toNumber(data.lon),
 
-    // Display
-    displayName: data.display_name || null,
-    category: data.class || null,
-    type: data.type || null,
-    importance: data.importance || null,
-    icon: data.icon || null,
+    // display
+    displayName: normalizeDisplay(data.display_name),
+    category: normalizeDisplay(data.class),
+    type: normalizeDisplay(data.type),
+    importance: toNumber(data.importance),
+    icon: normalizeDisplay(data.icon),
 
-    // Address breakdown (most important for DB)
-    continent: address.continent || null,
-    country: address.country || null,
-    countryCode: address.country_code || null,
+    // display names
+    continent: normalizeDisplay(address.continent),
+    country: normalizeDisplay(address.country),
+    state: normalizeDisplay(address.state),
+    city: normalizeDisplay(cityRaw),
 
-    region: address.region || null,
-    state: address.state || null,
-    stateDistrict: address.state_district || null,
-    county: address.county || null,
+    // stable DB keys
+    countryCode: normalizeCountryCode(address.country_code), // e.g. "US"
+    countryKey: normalizeKey(address.country), // e.g. "united states"
+    stateKey: normalizeKey(address.state), // e.g. "california"
+    cityKey: normalizeKey(cityRaw), // e.g. "san francisco"
 
-    municipality: address.municipality || null,
-    city:
-      address.city ||
-      address.town ||
-      address.village ||
-      address.municipality ||
-      null,
+    // optional extra normalized fields
+    region: normalizeDisplay(address.region),
+    stateDistrict: normalizeDisplay(address.state_district),
+    county: normalizeDisplay(address.county),
+    municipality: normalizeDisplay(address.municipality),
+    borough: normalizeDisplay(address.borough),
+    suburb: normalizeDisplay(address.suburb),
+    district: normalizeDisplay(address.district),
+    neighbourhood: normalizeDisplay(address.neighbourhood),
+    road: normalizeDisplay(address.road),
+    houseNumber: normalizeDisplay(address.house_number),
+    postcode: normalizeDisplay(address.postcode),
 
-    borough: address.borough || null,
-    suburb: address.suburb || null,
-    district: address.district || null,
-    neighbourhood: address.neighbourhood || null,
+    capital: normalizeDisplay(extra.capital),
+    population: toNumber(extra.population),
+    website: normalizeDisplay(extra.website),
+    wikipedia: normalizeDisplay(extra.wikipedia),
+    wikidata: normalizeDisplay(extra.wikidata),
+  };
 
-    road: address.road || null,
-    houseNumber: address.house_number || null,
-    postcode: address.postcode || null,
-
-    // Extra tags
-    capital: extra.capital || null,
-    population: extra.population
-      ? parseInt(extra.population)
-      : null,
-    website: extra.website || null,
-    wikipedia: extra.wikipedia || null,
-    wikidata: extra.wikidata || null,
-  }
-
-  return NextResponse.json(location)
+  return NextResponse.json(location);
 }
