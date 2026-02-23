@@ -13,8 +13,12 @@ type Pin = {
 
 export default function TravelMap() {
   const [pins, setPins] = useState<Pin[]>([]);
-  const [leaflet, setLeaflet] = useState<typeof import("react-leaflet") | null>(null);
-  const [leafletCore, setLeafletCore] = useState<typeof import("leaflet") | null>(null);
+  const [leaflet, setLeaflet] = useState<typeof import("react-leaflet") | null>(
+    null,
+  );
+  const [leafletCore, setLeafletCore] = useState<
+    typeof import("leaflet") | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +30,7 @@ export default function TravelMap() {
           setLeaflet(reactLeafletModule);
           setLeafletCore(leafletModule);
         }
-      }
+      },
     );
 
     return () => {
@@ -79,6 +83,15 @@ export default function TravelMap() {
 
   async function createPin(latitude: number, longitude: number) {
     try {
+      const locationData = await fetch(`/api/reverse?lat=${latitude}&lon=${longitude}`);
+      
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unknown error creating pin";
+      setError(message);
+    }
+
+    try {
       const response = await fetch("/api/pins", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +114,11 @@ export default function TravelMap() {
   }
 
   if (!leaflet || !markerIcon) {
-    return <div style={{ height: "100%", width: "100%", backgroundColor: "#ffffff" }} />;
+    return (
+      <div
+        style={{ height: "100%", width: "100%", backgroundColor: "#ffffff" }}
+      />
+    );
   }
 
   const { MapContainer, TileLayer, Marker, Popup, useMapEvents } = leaflet;
@@ -128,7 +145,11 @@ export default function TravelMap() {
       />
       <AddMarker />
       {pins.map((pin) => (
-        <Marker key={pin.id} position={[pin.latitude, pin.longitude]} icon={markerIcon}>
+        <Marker
+          key={pin.id}
+          position={[pin.latitude, pin.longitude]}
+          icon={markerIcon}
+        >
           <Popup>
             Lat: {pin.latitude.toFixed(4)} <br />
             Lng: {pin.longitude.toFixed(4)} <br />

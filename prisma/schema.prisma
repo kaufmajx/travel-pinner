@@ -6,10 +6,84 @@ datasource db {
   provider = "postgresql"
 }
 
-model Pin {
-  id        String   @id @default(uuid())
-  latitude  Float
-  longitude Float
-  title     String?
+model User {
+  id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
+  email     String   @unique
+  name      String?
+  role      Role     @default(USER)
+  pins      Pin[]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Pin {
+  id         Int      @id @default(autoincrement())
+  latitude   Float
+  longitude  Float
+  title      String?
+  notes      String?   // new
+  emoji      String?   // new
+  createdAt  DateTime @default(now())
+
+  author     User     @relation(fields: [authorId], references: [id])
+  authorId   Int
+
+  city       City?    @relation(fields: [cityId], references: [id])
+  cityId     String?
+
+  @@index([cityId])
+}
+
+//
+// LOCATION HIERARCHY
+//
+
+model Country {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique  // gb, us, fr
+  continent   String?
+
+  states      State[]
+  cities      City[]
+
+  @@index([name])
+}
+
+model State {
+  id          String   @id @default(uuid())
+  name        String
+  country     Country  @relation(fields: [countryId], references: [id])
+  countryId   String
+
+  cities      City[]
+
+  @@index([name])
+  @@index([countryId])
+}
+
+model City {
+  id          String   @id @default(uuid())
+  name        String
+  osmId       String?  @unique
+  population  Int?
+
+  latitude    Float?
+  longitude   Float?
+
+  country     Country  @relation(fields: [countryId], references: [id])
+  countryId   String
+
+  state       State?   @relation(fields: [stateId], references: [id])
+  stateId     String?
+
+  pins        Pin[]
+
+  @@index([name])
+  @@index([countryId])
+  @@index([stateId])
 }
