@@ -22,6 +22,10 @@ export default function Navigation() {
           Pin It
         </Link>
 
+        {/* <div className="mt-4 flex items-center justify-between gap-2 md:mt-8">
+        <Search placeholder="Search invoices..." />
+      </div> */}
+
         <div className="hidden items-center gap-6 md:flex">
           {navItems.map((item) => (
             <Link

@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const latitude = Number(body.latitude);
     const longitude = Number(body.longitude);
+    const isWishlist = Boolean(body.isWishlist);
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return NextResponse.json(
@@ -165,30 +166,81 @@ export async function POST(req: Request) {
         : null;
 
       const city = location.city
-        ? await tx.city.upsert({
-            where: {
-              countryId_stateId_name: {
+        ? location.osmId
+          ? await tx.city.upsert({
+              where: { osmId: location.osmId },
+              update: {
+                name: location.city,
                 countryId: country.id,
                 stateId: state?.id ?? null,
-                name: location.city,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                population: location.population,
               },
-            },
-            update: {
-              latitude: location.latitude,
-              longitude: location.longitude,
-              population: location.population,
-              osmId: location.osmId,
-            },
-            create: {
-              name: location.city,
-              countryId: country.id,
-              stateId: state?.id ?? null,
-              latitude: location.latitude,
-              longitude: location.longitude,
-              population: location.population,
-              osmId: location.osmId,
-            },
-          })
+              create: {
+                name: location.city,
+                countryId: country.id,
+                stateId: state?.id ?? null,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                population: location.population,
+                osmId: location.osmId,
+              },
+            })
+          : state?.id
+            ? await tx.city.upsert({
+                where: {
+                  countryId_stateId_name: {
+                    countryId: country.id,
+                    stateId: state.id,
+                    name: location.city,
+                  },
+                },
+                update: {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  population: location.population,
+                },
+                create: {
+                  name: location.city,
+                  countryId: country.id,
+                  stateId: state.id,
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  population: location.population,
+                },
+              })
+            : await (async () => {
+                const existing = await tx.city.findFirst({
+                  where: {
+                    countryId: country.id,
+                    stateId: null,
+                    name: location.city,
+                  },
+                });
+
+                if (existing) {
+                  return tx.city.update({
+                    where: { id: existing.id },
+                    data: {
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                      population: location.population,
+                    },
+                  });
+                }
+
+                return tx.city.create({
+                  data: {
+                    name: location.city,
+                    countryId: country.id,
+                    stateId: null,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    population: location.population,
+                  },
+                });
+              })()
         : null;
 
       const newPin = await tx.pin.create({
@@ -196,6 +248,7 @@ export async function POST(req: Request) {
           latitude,
           longitude,
           title: body.title ?? null,
+          isWishlist,
           authorId: body.authorId ?? null, // required in your schema
           cityId: city?.id ?? null,
         },

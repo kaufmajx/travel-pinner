@@ -25,6 +25,7 @@ model Pin {
   latitude   Float
   longitude  Float
   title      String?
+  isWishlist Boolean  @default(false)
   notes      String?   // new
   emoji      String?   // new
   createdAt  DateTime @default(now())
