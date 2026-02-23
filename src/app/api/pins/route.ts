@@ -10,7 +10,9 @@ export async function GET() {
     return NextResponse.json(pins);
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Failed to fetch pins" }, { status: 500 });
+    const message =
+      err instanceof Error ? err.message : "Unknown error while fetching pins";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -18,18 +20,20 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const latitude = Number(body.latitude);
+    const longitude = Number(body.longitude);
 
-    if (!body.latitude || !body.longitude) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return NextResponse.json(
-        { error: "Latitude and longitude required" },
+        { error: "Valid latitude and longitude are required" },
         { status: 400 }
       );
     }
 
     const newPin = await prisma.pin.create({
       data: {
-        latitude: body.latitude,
-        longitude: body.longitude,
+        latitude,
+        longitude,
         title: body.title || null,
       },
     });
@@ -37,6 +41,8 @@ export async function POST(req: Request) {
     return NextResponse.json(newPin);
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Failed to create pin" }, { status: 500 });
+    const message =
+      err instanceof Error ? err.message : "Unknown error while creating pin";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
