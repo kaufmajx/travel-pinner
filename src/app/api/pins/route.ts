@@ -59,11 +59,6 @@ export async function POST(req: Request) {
       return cleaned.length ? cleaned : null;
     };
 
-    const normalizeKey = (value: unknown): string | null => {
-      const display = normalizeDisplay(value);
-      return display ? display.toLocaleLowerCase("en-US") : null;
-    };
-
     const normalizeCountryCode = (value: unknown): string | null => {
       if (typeof value !== "string") return null;
       const cleaned = value.trim().toUpperCase();
@@ -89,61 +84,36 @@ export async function POST(req: Request) {
     const location = {
       // identity
       osmId: data.osm_id != null ? String(data.osm_id) : null,
-      osmType: normalizeDisplay(data.osm_type),
-      placeId: data.place_id != null ? String(data.place_id) : null,
 
       // coordinates
       latitude: toNumber(data.lat),
       longitude: toNumber(data.lon),
 
-      // display
-      displayName: normalizeDisplay(data.display_name),
-      category: normalizeDisplay(data.class),
-      type: normalizeDisplay(data.type),
-      importance: toNumber(data.importance),
-      icon: normalizeDisplay(data.icon),
-
-      // display names
       continent: normalizeDisplay(address.continent),
       country: normalizeDisplay(address.country),
       state: normalizeDisplay(address.state),
       city: normalizeDisplay(cityRaw),
 
-      // stable DB keys
       countryCode: normalizeCountryCode(address.country_code), // e.g. "US"
-      countryKey: normalizeKey(address.country), // e.g. "united states"
-      stateKey: normalizeKey(address.state), // e.g. "california"
-      cityKey: normalizeKey(cityRaw), // e.g. "san francisco"
-
-      // optional extra normalized fields
-      region: normalizeDisplay(address.region),
-      stateDistrict: normalizeDisplay(address.state_district),
-      county: normalizeDisplay(address.county),
-      municipality: normalizeDisplay(address.municipality),
-      borough: normalizeDisplay(address.borough),
-      suburb: normalizeDisplay(address.suburb),
-      district: normalizeDisplay(address.district),
-      neighbourhood: normalizeDisplay(address.neighbourhood),
-      road: normalizeDisplay(address.road),
-      houseNumber: normalizeDisplay(address.house_number),
-      postcode: normalizeDisplay(address.postcode),
-
-      capital: normalizeDisplay(extra.capital),
       population: toNumber(extra.population),
-      website: normalizeDisplay(extra.website),
-      wikipedia: normalizeDisplay(extra.wikipedia),
-      wikidata: normalizeDisplay(extra.wikidata),
     };
+
+    if (!location.countryCode) {
+      return NextResponse.json(
+        { error: "Could not resolve country code for this location" },
+        { status: 422 },
+      );
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const country = await tx.country.upsert({
-        where: { code: location.countryCode! }, // must be unique in schema
+        where: { code: location.countryCode }, // must be unique in schema
         update: {
           name: location.country ?? "Unknown",
           continent: location.continent,
         },
         create: {
-          code: location.countryCode!,
+          code: location.countryCode,
           name: location.country ?? "Unknown",
           continent: location.continent,
         },
@@ -243,16 +213,35 @@ export async function POST(req: Request) {
               })()
         : null;
 
+      const pinData: {
+        latitude: number;
+        longitude: number;
+        title: string | null;
+        isWishlist: boolean;
+        country?: { connect: { id: string } };
+        city?: { connect: { id: string } };
+        author?: { connect: { id: number } };
+      } = {
+        latitude,
+        longitude,
+        title: body.title ?? null,
+        isWishlist,
+      };
+
+      pinData.country = { connect: { id: country.id } };
+
+      if (city?.id) {
+        pinData.city = { connect: { id: city.id } };
+      }
+
+      if (typeof body.authorId === "number") {
+        pinData.author = { connect: { id: body.authorId } };
+      }
+
       const newPin = await tx.pin.create({
-        data: {
-          latitude,
-          longitude,
-          title: body.title ?? null,
-          isWishlist,
-          authorId: body.authorId ?? null, // required in your schema
-          cityId: city?.id ?? null,
-        },
+        data: pinData,
         include: {
+          country: true,
           city: {
             include: {
               state: true,

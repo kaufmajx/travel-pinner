@@ -36,7 +36,10 @@ model Pin {
   city       City?    @relation(fields: [cityId], references: [id])
   cityId     String?
 
-  @@index([cityId])
+  country   Country?  @relation(fields: [countryId], references: [id])
+  countryId String?
+
+  @@index([cityId, countryId])
 }
 
 //
@@ -51,6 +54,7 @@ model Country {
 
   states      State[]
   cities      City[]
+  pins        Pin[]
 
   @@index([name])
 }
